@@ -1,0 +1,160 @@
+﻿@inherits System.Web.Mvc.WebViewPage<DBSportStore.Models.StoreHomeViewModel>
+
+
+@{
+
+    ViewBag.Title = "Trang chủ"; // tiêu đề trên tab trình duyệt
+
+    Layout = "~/Views/Shared/_StoreLayout.cshtml"; // dùng Layout chung
+
+}
+
+<!-- ===== HERO BANNER ===== -->
+
+<section class="hero">
+
+    <div>
+
+        <p>NEW SEASON / SPORT & ACTIVE</p>
+
+        <h1>Move better. Train stronger.</h1>
+
+        <p>Khám phá bộ sưu tập thể thao dành cho tập luyện, thi đấu và phong cách sống năng động.</p>
+
+        <a class="btn-brand" href="#featured-products">Mua sắm ngay</a>
+
+    </div>
+
+</section>
+
+
+
+<!-- Tiêu đề khu vực sản phẩm nổi bật -->
+
+<div class="catalog-toolbar">
+    @using (Html.BeginForm(
+        "Index",
+        "Store",
+        FormMethod.Get,
+        new { @class = "catalog-search" }))
+    {
+        if (Model.SelectedCategoryId.HasValue)
+        {
+            <input type="hidden"
+                   name="categoryId"
+                   value="@Model.SelectedCategoryId" />
+        }
+
+        <input type="text"
+               name="keyword"
+               value="@Model.SearchTerm"
+               placeholder="Tìm tên hoặc mô tả sản phẩm..." />
+
+        <button type="submit" class="btn-brand">
+            Tìm kiếm
+        </button>
+
+        <a class="btn-soft"
+           href="@Url.Action("Index", "Store")">
+            Xóa lọc
+        </a>
+    }
+</div>
+
+<h2 class="section-title">Tất cả sản phẩm</h2>
+
+
+
+<!-- ===== KHUNG CHÍNH: danh mục trái + sản phẩm phải ===== -->
+
+<div class="store-shell" id="featured-products">
+
+    <!-- Danh mục tạm; Buổi 06 sẽ lấy từ database -->
+
+    <aside class="category-panel">
+
+        <h3>Danh mục</h3>
+
+        <ul class="category-list">
+            <li>
+                <a href="@Url.Action("Index", "Store")">Tất cả sản phẩm</a>
+            </li>
+
+            @* Duyệt danh sách Category do Controller gửi sang. *@
+            @foreach (var category in Model.Categories)
+            {
+                <li>
+                    <a href="@Url.Action(
+                        "Index",
+                        "Store",
+                        new
+                        {
+                            categoryId = category.CategoryID,
+                            keyword = Model.SearchTerm
+                        })">
+                        @category.CategoryName
+                    </a>
+                </li>
+            }
+        </ul>
+
+
+    </aside>
+
+
+
+    <section>
+
+        <!-- Lưới chứa các Product Card -->
+
+        <div class="product-grid">
+
+            @* Duyệt từng sản phẩm trong Model *@
+
+            @foreach (var item in Model.Products)
+
+            {
+
+                <!-- Một card tương ứng một sản phẩm -->
+
+                <article class="product-card">
+
+                    <!-- Hiển thị ảnh từ Content/images -->
+
+                    <div class="product-image">
+
+                        <img src="~/Content/images/@item.ImagePro" alt="@item.NamePro" /> @* lấy tên ảnh từ item.ImagePro *@
+
+                    </div>
+
+                    <!-- Thông tin sản phẩm: danh mục, tên, giá -->
+
+                    <div class="product-body">
+
+                        <div style="color:#64748b;font-size:13px;">@item.CategoryName</div>
+
+                        <div class="product-name">@item.NamePro</div>
+
+                        <div class="product-price">@item.Price.ToString("#,##0") đ</div> @* định dạng giá có phân cách hàng nghìn *@
+
+                        <!-- Nút Chi tiết/Mua sẽ nối chức năng ở buổi sau -->
+
+                        <div class="product-actions">
+
+                            <a class="btn-soft" href="#">Chi tiết</a>
+
+                            <a class="btn-brand" href="#">Mua</a>
+
+                        </div>
+
+                    </div>
+
+                </article>
+
+            }
+
+        </div>
+
+    </section>
+
+</div>

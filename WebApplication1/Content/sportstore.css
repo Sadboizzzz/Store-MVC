@@ -14,6 +14,92 @@
     --page: #f8fafc; /* Màu nền chung của toàn trang */
 }
 
+/* =========================================================
+   B06 - TÌM KIẾM VÀ PHÂN TRANG
+   ========================================================= */
+
+.catalog-toolbar {
+    margin: 20px 0 24px;
+}
+
+.catalog-search {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.catalog-search input[type="text"],
+.catalog-search input[type="number"] {
+    flex: 1;
+    min-width: 170px;
+    padding: 11px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    outline: none;
+}
+
+.catalog-empty {
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    color: #64748b;
+    text-align: center;
+}
+
+.catalog-empty h3 {
+    margin-bottom: 8px;
+}
+
+.catalog-empty p {
+    margin-bottom: 18px;
+    color: #64748b;
+}
+
+.catalog-summary {
+    margin: 10px 0;
+    color: #64748b;
+}
+
+.catalog-sort {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.store-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 28px 0;
+}
+
+.store-pagination a,
+.store-pagination span {
+    display: inline-block;
+    min-width: 36px;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.store-pagination a {
+    color: #334155;
+    background: #ffffff;
+}
+
+.store-pagination a:hover,
+.store-pagination span.active {
+    color: #ffffff;
+    background: var(--brand);
+    border-color: var(--brand);
+}
+
 
 
 

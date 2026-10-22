@@ -1,0 +1,59 @@
+﻿using DBSportStore.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using WebApplication1.Models;
+using WebApplication1.Models.Buoi04;
+
+namespace WebApplication1.Controllers
+{
+    public class StoreController : Controller
+    {
+        // Sửa DBSportStoreModel thành DBSportStoreEntities
+        private DBSportStoreEntities1 db = new DBSportStoreEntities1();
+
+        // GET: Store
+        // Action Index xử lý URL /Store/Index
+        public ActionResult Index(int? categoryId)
+        {
+            var products = db.Products
+                .Where(p => p.IsActive);
+
+            if (categoryId.HasValue)
+            {
+                products = products
+                    .Where(p => p.CategoryID == categoryId.Value);
+            }
+
+            var model = new StoreHomeViewModel
+            {
+                // Lấy toàn bộ Category từ CSDL và sắp xếp theo tên.
+                Categories = db.Categories
+            .OrderBy(c => c.CategoryName)
+            .ToList(),
+
+                // Giữ nguyên cách lấy sản phẩm đang bán của B05.
+                Products = products
+            .Select(p => new ProductCardViewModel
+            {
+                ProductID = p.ProductID,
+                CategoryID = p.CategoryID,
+                NamePro = p.ProductName,
+                CategoryName = p.Category.CategoryName,
+                Price = p.Price,
+                ImagePro = p.ImageUrl
+            })
+            .ToList()
+            };
+
+            // Gửi StoreHomeViewModel thay cho một List<ProductCardViewModel>.
+            return View(model);
+
+        }
+
+
+
+    }
+}

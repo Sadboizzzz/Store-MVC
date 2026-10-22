@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DBSportStore.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
@@ -15,23 +16,116 @@ namespace WebApplication1.Controllers
 
         // GET: Store
         // Action Index xử lý URL /Store/Index
-        public ActionResult Index()
+        public ActionResult Index(
+            int? categoryId,
+            string keyword,
+            decimal? minPrice,
+            decimal? maxPrice,
+            string sortOrder,
+            int page = 1)
         {
-            // Lấy các sản phẩm từ database và chuyển sang ProductCardViewModel
-            var products = db.Products
-                .Where(p => p.IsActive)
-                .Select(p => new ProductCardViewModel
-                {
-                    ProductID = p.ProductID,
-                    NamePro = p.ProductName,
-                    CategoryName = p.Category.CategoryName,
-                    Price = p.Price,
-                    ImagePro = p.ImageUrl
-                })
-                .ToList();
+            const int pageSize = 6;
 
-            // Truyền products sang View Index
-            return View(products);
+            if (page < 1)
+            {
+                page = 1;
+            }
+
+            var products = db.Products
+                .Where(p => p.IsActive);
+
+            if (categoryId.HasValue)
+            {
+                products = products
+                    .Where(p => p.CategoryID == categoryId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+                products = products.Where(
+                    p => p.ProductName.Contains(keyword)
+                      || p.Description.Contains(keyword));
+            }
+
+            if (minPrice.HasValue)
+            {
+                products = products.Where(p => p.Price >= minPrice.Value);
+            }
+
+            if (maxPrice.HasValue)
+            {
+                products = products.Where(p => p.Price <= maxPrice.Value);
+            }
+
+            int totalItems = products.Count();
+            int totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+
+            if (totalPages == 0)
+            {
+                totalPages = 1;
+            }
+
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            if (sortOrder == "price_asc")
+            {
+                products = products
+                    .OrderBy(p => p.Price)
+                    .ThenBy(p => p.ProductID);
+            }
+            else if (sortOrder == "price_desc")
+            {
+                products = products
+                    .OrderByDescending(p => p.Price)
+                    .ThenByDescending(p => p.ProductID);
+            }
+            else
+            {
+                products = products.OrderByDescending(p => p.ProductID);
+            }
+
+            var model = new StoreHomeViewModel
+            {
+                // Lấy toàn bộ Category từ CSDL và sắp xếp theo tên.
+                Categories = db.Categories
+            .OrderBy(c => c.CategoryName)
+            .ToList(),
+
+                // Giữ nguyên cách lấy sản phẩm đang bán của B05.
+                Products = products
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new ProductCardViewModel
+            {
+                ProductID = p.ProductID,
+                CategoryID = p.CategoryID,
+                NamePro = p.ProductName,
+                CategoryName = p.Category.CategoryName,
+                Price = p.Price,
+                ImagePro = p.ImageUrl
+            })
+            .ToList(),
+
+                SelectedCategoryId = categoryId,
+                SearchTerm = keyword,
+                MinPrice = minPrice,
+                MaxPrice = maxPrice,
+                TotalItems = totalItems,
+                SortOrder = sortOrder,
+                CurrentPage = page,
+                TotalPages = totalPages
+            };
+
+            // Gửi StoreHomeViewModel thay cho một List<ProductCardViewModel>.
+            return View(model);
+
         }
+
+
+
     }
 }

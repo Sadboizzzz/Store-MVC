@@ -11,6 +11,8 @@ namespace WebApplication1.Models.Buoi04
 
         public int ProductID { get; set; } // mã sản phẩm
 
+        public int CategoryID { get; set; } // mã danh mục
+
         public string NamePro { get; set; } // tên sản phẩm
 
         public string CategoryName { get; set; } // tên danh mục

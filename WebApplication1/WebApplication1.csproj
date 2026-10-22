@@ -129,6 +129,7 @@
     <Compile Include="App_Start\BundleConfig.cs" />
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
+    <Compile Include="Controllers\CategoriesController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\ProductsController.cs" />
     <Compile Include="Controllers\StoreController.cs" />
@@ -169,6 +170,7 @@
     <Compile Include="Models\Role.cs">
       <DependentUpon>DBSportStoreModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="Models\StoreHomeViewModel.cs" />
     <Compile Include="Models\UserAccount.cs">
       <DependentUpon>DBSportStoreModel.tt</DependentUpon>
     </Compile>
@@ -249,6 +251,11 @@
     <Content Include="Views\Home\Contact.cshtml" />
     <Content Include="Views\Home\Index.cshtml" />
     <Content Include="Views\Shared\_StoreLayout.cshtml" />
+    <Content Include="Views\Categories\Create.cshtml" />
+    <Content Include="Views\Categories\Delete.cshtml" />
+    <Content Include="Views\Categories\Details.cshtml" />
+    <Content Include="Views\Categories\Edit.cshtml" />
+    <Content Include="Views\Categories\Index.cshtml" />
     <Content Include="Views\Store\Index.cshtml" />
     <Content Include="Views\Products\Create.cshtml" />
     <Content Include="Views\Products\Delete.cshtml" />
