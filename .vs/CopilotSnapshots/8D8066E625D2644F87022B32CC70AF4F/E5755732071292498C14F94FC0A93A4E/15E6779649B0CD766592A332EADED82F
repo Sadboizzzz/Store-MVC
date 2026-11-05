@@ -1,0 +1,55 @@
+﻿@model WebApplication1.Models.OrderPro
+@{
+    ViewBag.Title = "Đặt hàng thành công";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="order-success">
+    <div class="order-success-head">
+        <h2 class="section-title">Đặt hàng thành công</h2>
+        <p>Cảm ơn bạn đã mua hàng tại SportStore.</p>
+    </div>
+
+    <div class="order-info-grid">
+        <div class="order-info-card">
+            <h3>Thông tin đơn hàng</h3>
+            <p>Mã đơn: <strong>#@Model.OrderID</strong></p>
+            <p>Ngày đặt: @Model.OrderDate.ToString("dd/MM/yyyy HH:mm")</p>
+            <p>Trạng thái: @Model.Status</p>
+            <p>Tổng tiền: <strong class="product-price">@Model.TotalAmount.ToString("#,##0") đ</strong></p>
+            <p>Tổng số lượng: @Model.OrderDetails.Sum(d => d.Quantity)</p>
+        </div>
+        <div class="order-info-card">
+            <h3>Thông tin giao hàng</h3>
+            <p>Người nhận: @Model.Customer.FullName</p>
+            <p>Số điện thoại: @Model.Customer.Phone</p>
+            <p>Email: @Model.Customer.Email</p>
+            <p>Địa chỉ khách hàng: @Model.Customer.Address</p>
+            <p>Địa chỉ giao hàng: @Model.ShippingAddress</p>
+        </div>
+    </div>
+
+    <div class="order-info-card">
+        <h3>Chi tiết đơn hàng</h3>
+        <div class="cart-table-wrap">
+            <table class="cart-table">
+                <thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th>Số lượng</th><th>Thành tiền</th></tr></thead>
+                <tbody>
+                    @foreach (var detail in Model.OrderDetails)
+                    {
+                        <tr>
+                            <td>@detail.Product.ProductName</td>
+                            <td>@detail.UnitPrice.ToString("#,##0") đ</td>
+                            <td>@detail.Quantity</td>
+                            <td class="product-price">@((detail.UnitPrice * detail.Quantity).ToString("#,##0")) đ</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="order-success-actions">
+        @Html.ActionLink("Tiếp tục mua hàng", "Index", "Store", null, new { @class = "btn-brand" })
+    </div>
+</div>

@@ -2,7 +2,7 @@
 
 <!DOCTYPE html>
 
-<html>
+<html lang="vi">
 
 @* HEAD: tiêu đề, CSS và script dùng chung *@
 
@@ -24,7 +24,7 @@
 
 @* BODY: phần giao diện hiển thị trên trình duyệt *@
 
-<body>
+<body class="store-page">
 
     <!-- Thanh thông báo phía trên cùng -->
 
@@ -49,22 +49,33 @@
             <!-- Menu chính của website -->
 
             <nav class="store-nav">
-                @* Các trang đã có Controller *@
                 @Html.ActionLink("Giới thiệu", "AboutStore", "Store")
-                @Html.ActionLink("Trang chủ", "Index", "Store")
+                <a href="@Url.Action("Index", "Store")">Trang chủ</a>
+                @{ Html.RenderAction("BagCart", "ShoppingCart"); }
 
-                @* CRUD sản phẩm - đã thực hiện trong phần chính B05 *@
-                @Html.ActionLink("Quản lý sản phẩm", "Index", "Products")
+                @if (Session["UserID"] == null)
+                {
+                    <a href="@Url.Action("SignUp", "Account")">Đăng ký</a>
+                    <a href="@Url.Action("Login", "Account")">Đăng nhập</a>
+                }
+                else
+                {
+                    if (Convert.ToString(Session["Role"]) == "Admin")
+                    {
+                        <a href="@Url.Action("Index", "Admin")">Quản trị</a>
+                        <a href="@Url.Action("Index", "Products")">Sản phẩm</a>
+                        <a href="@Url.Action("Index", "Categories")">Danh mục</a>
+                        <a href="@Url.Action("Index", "Orders")">Đơn hàng</a>
+                    }
 
-                @Html.ActionLink("Quản lý danh mục", "Index", "Categories")
+                    <span class="nav-user">Xin chào @(Session["FullName"] ?? Session["UserName"])</span>
 
-                @* Chức năng quản trị sẽ thực hiện khi có Login/Role Admin ở B08 *@
-                <a href="#">Quản lý khách hàng</a>
-                <a href="#">Quản lý đơn hàng</a>
-
-                @* Các chức năng sẽ thực hiện ở các buổi sau *@
-                <a href="#">Giỏ hàng</a>
-                <a href="#">Đăng nhập</a>
+                    using (Html.BeginForm("Logout", "Account", FormMethod.Post, new { @class = "nav-logout-form" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="nav-link-button">Đăng xuất</button>
+                    }
+                }
             </nav>
 
 
@@ -76,7 +87,7 @@
 
     <!-- Nội dung của từng View sẽ được chèn vào đây -->
 
-    <main class="container">
+    <main class="container store-main">
 
         @RenderBody() @* Chèn nội dung View hiện tại *@
 

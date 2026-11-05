@@ -1,0 +1,1718 @@
+﻿LẬP TRÌNH WEB CƠ BẢN
+BUỔI 08 - ĐĂNG KÝ, ĐĂNG NHẬP & PHÂN QUYỀN
+Sign Up - Hash + Salt - Login + Session - Logout - Role - Admin Authorization - Menu
+MỤC TIÊU THỰC HÀNH
+Tiếp tục trực tiếp project B07_Complete. Phần thực hành chính gồm: (1) Sign Up + Validation, (2) Hash + Salt + tạo UserAccount → Customer, (3) Login + Session, (4) Logout, (5) Role Admin/Customer + phân quyền Admin, (6) Menu theo trạng thái Login, (7) Customer đã Login Checkout bằng Customer hiện tại. Các nội dung Admin quản lý Product/Category, Order, cập nhật Status và Order Detail được chuyển sang Bài tập cuối buổi.
+PHẠM VI B08
+B08 tự xây cơ chế đăng ký/đăng nhập ở mức cơ bản để sinh viên hiểu bản chất Authentication và Authorization. Password không lưu dạng gõ; CSDL chỉ lưu PasswordHash và PasswordSalt. Guest Checkout của B07 vẫn giữ nguyên. Phần thực hành chính kết thúc sau Member Checkout; các chức năng quản trị nâng cao là bài tập cuối buổi. Cuối bài giới thiệu ASP.NET Identity như hướng triển khai thực tế.
+1. Chuẩn bị từ B07_Complete
+MỤC TIÊU
+Xác nhận project B07 đang chạy đúng trước khi bổ sung tài khoản và phân quyền. Không sửa lại Cart/Session của giỏ hàng, Guest Checkout hoặc OrderSuccess nếu các chức năng này đã chạy tốt.
+Bước 1. Mở bản project B07_Complete đã hoàn thành.
+Bước 2. Build → Build Solution.
+Bước 3. Chạy /Store/Index → thêm 2 sản phẩm → ShowCart → Checkout guest → Đặt hàng → OrderSuccess.
+Bước 4. Kiểm tra Cart được Clear sau khi đặt hàng thành công.
+Bước 5. Mở SQL Server Object Explorer → DBSportStore → kiểm tra các bảng Role, UserAccount, Customer, Product, Category, OrderPro, OrderDetail.
+Bảng
+Các cột B08 sử dụng
+Role
+RoleID, RoleName
+UserAccount
+UserID, UserName, PasswordHash, PasswordSalt, RoleID, IsActive, CreatedAt
+Customer
+CustomerID, UserID, FullName, Phone, Email, Address
+OrderPro
+OrderID, CustomerID, RecipientName, ShippingPhone, ShippingAddress, TotalAmount, Status
+OrderDetail
+OrderID, ProductID, Quantity, UnitPrice
+Bước 6. View Data bảng Role → phải có Admin và Customer.
+Bước 7. Kiểm tra Customer.UserID cho phép NULL. Guest của B07 tiếp tục dùng UserID = NULL.
+GIỮ NGUYÊN NỀN B07
+B07 đã hoàn thiện Cart + Session, Add/Update/Remove, Guest Checkout, tạo Customer(UserID=NULL) → OrderPro → OrderDetail và OrderSuccess. B08 chỉ mở rộng tài khoản Customer, Login/Logout, Role và chức năng Admin.
+HOÀN THÀNH CHỨC NĂNG
+B07_Complete chạy đúng và CSDL sẵn sàng. Chuyển sang phần 2 - Sign Up + Validation.
+2. Chức năng 1 - Sign Up + Validation
+MỤC TIÊU
+Tạo form đăng ký với các trường UserName, Password, ConfirmPassword, FullName, Phone, Email, Address. Ở chức năng này chỉ test form và Validation, CHƯA lưu UserAccount/Customer.
+2.1. Tạo AccountViewModels.cs
+Bước 1. Click phải thư mục Models → Add → Class...
+Bước 2. Đặt tên AccountViewModels.cs.
+Bước 3. Dán code sau.
+Models/AccountViewModels.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.ComponentModel.DataAnnotations;
+namespace DBSportStore.Models
+{
+    // =========================================================
+    // VIEWMODEL DÙNG CHO FORM SIGN UP
+    // =========================================================
+    // SignUpViewModel không phải bảng CSDL.
+    // Nó chỉ gom các dữ liệu người dùng nhập trên form Đăng ký.
+    public class SignUpViewModel
+    {
+        // Bắt buộc nhập UserName.
+        [Required(
+            ErrorMessage = "Vui lòng nhập tên đăng nhập.")]
+        // UserAccount.UserName trong CSDL có độ dài tối đa 50.
+        [StringLength(50)]
+        // Tên hiển thị trên Label.
+        [Display(Name = "Tên đăng nhập")]
+        public string UserName { get; set; }
+        // Bắt buộc nhập Password.
+        [Required(
+            ErrorMessage = "Vui lòng nhập mật khẩu.")]
+        // Trong bài này yêu cầu ít nhất 6 ký tự.
+        [StringLength(
+            50,
+            MinimumLength = 6,
+            ErrorMessage = "Mật khẩu phải có ít nhất 6 ký tự.")]
+        // View sẽ hiển thị ô nhập dạng Password.
+        [DataType(DataType.Password)]
+        [Display(Name = "Mật khẩu")]
+        public string Password { get; set; }
+        // Người dùng phải nhập lại Password.
+        [Required(
+            ErrorMessage = "Vui lòng nhập lại mật khẩu.")]
+        [DataType(DataType.Password)]
+        // Compare kiểm tra ConfirmPassword
+        // phải giống với property Password ở phía trên.
+        [Compare(
+            "Password",
+            ErrorMessage = "Mật khẩu nhập lại không khớp.")]
+        [Display(Name = "Nhập lại mật khẩu")]
+        public string ConfirmPassword { get; set; }
+        [Required(
+            ErrorMessage = "Vui lòng nhập họ tên.")]
+        [StringLength(100)]
+        [Display(Name = "Họ tên")]
+        public string FullName { get; set; }
+        [Required(
+            ErrorMessage = "Vui lòng nhập số điện thoại.")]
+        [StringLength(20)]
+        [Display(Name = "Số điện thoại")]
+        public string Phone { get; set; }
+        [Required(
+            ErrorMessage = "Vui lòng nhập email.")]
+        // Kiểm tra định dạng email cơ bản.
+        [EmailAddress(
+            ErrorMessage = "Email không đúng định dạng.")]
+        [StringLength(100)]
+        [Display(Name = "Email")]
+        public string Email { get; set; }
+        [Required(
+            ErrorMessage = "Vui lòng nhập địa chỉ.")]
+        [StringLength(250)]
+        [Display(Name = "Địa chỉ")]
+        public string Address { get; set; }
+    }
+}
+2.2. Tạo AccountController - bản test Sign Up
+Bước 1. Click phải Controllers → Add → Controller...
+Bước 2. Chọn MVC 5 Controller - Empty → đặt tên AccountController.
+Bước 3. Dán code sau.
+Controllers/AccountController.cs - phiên bản chức năng 1
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using DBSportStore.Models;
+namespace DBSportStore.Controllers
+{
+    public class AccountController : Controller
+    {
+        // GET: Account
+        public ActionResult Index()
+        {
+            return View();
+        }
+        // Kết nối CSDL DBSportStore bằng EF Database First.
+        private DBSportStoreEntities db =
+            new DBSportStoreEntities();
+        // =====================================================
+        // MỞ FORM SIGN UP
+        // =====================================================
+        // GET: chạy khi người dùng mở /Account/SignUp.
+        [HttpGet]
+        public ActionResult SignUp()
+        {
+            return View();
+        }
+        // =====================================================
+        // NHẬN DỮ LIỆU SIGN UP - BẢN TEST VALIDATION
+        // =====================================================
+        // POST: chạy khi người dùng bấm nút Đăng ký.
+        [HttpPost]
+        // Kiểm tra Anti-Forgery Token gửi từ form.
+        [ValidateAntiForgeryToken]
+        public ActionResult SignUp(
+            SignUpViewModel model)
+        {
+            // ModelState.IsValid = true khi dữ liệu
+            // thỏa tất cả DataAnnotations trong ViewModel.
+            if (!ModelState.IsValid)
+            {
+                // Dữ liệu sai -> trả lại View
+                // để hiển thị thông báo Validation.
+                return View(model);
+            }
+            // Chức năng 1 chỉ test Validation.
+            // Chức năng 2 mới Hash + Salt và lưu CSDL.
+            ViewBag.SignUpTest =
+                "Thông tin đăng ký hợp lệ.";
+            return View(model);
+        }
+        // Giải phóng DbContext khi Controller kết thúc.
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                db.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}
+2.3. Tạo Views/Account/SignUp.cshtml
+Bước 1. Tạo thư mục Views/Account nếu chưa có.
+Bước 2. Trong AccountController, click phải bên trong SignUp() GET → Add View...
+Bước 3. View name: SignUp → Template: Empty (without model) → dùng _StoreLayout.cshtml.
+Bước 4. Dán code sau.
+Views/Account/SignUp.cshtml
+@* View nhận dữ liệu SignUpViewModel *@
+@model DBSportStore.Models.SignUpViewModel
+@{
+    ViewBag.Title = "Đăng ký";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+<div class="auth-page">
+    <div class="auth-card">
+        <h2>Đăng ký tài khoản</h2>
+        <p class="auth-subtitle">
+            Tạo tài khoản Customer để đăng nhập mua hàng.
+        </p>
+        @* ==================== THÔNG BÁO TEST ==================== *@
+        @if (ViewBag.SignUpTest != null)
+        {
+            <div class="cart-message cart-message-success">
+                @ViewBag.SignUpTest
+            </div>
+        }
+        @* Form POST về AccountController.SignUp *@
+        @using (Html.BeginForm(
+            "SignUp",
+            "Account",
+            FormMethod.Post))
+        {
+            @* Token bảo vệ form POST *@
+            @Html.AntiForgeryToken()
+            @* Hiển thị lỗi chung do Controller thêm vào ModelState *@
+            @Html.ValidationSummary(
+                true,
+                "",
+                new { @class = "text-danger" })
+            @* ==================== USERNAME ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.UserName)
+                @Html.TextBoxFor(
+                    m => m.UserName,
+                    new
+                    {
+                        @class = "form-control-modern",
+                        placeholder = "Nhập tên đăng nhập"
+                    })
+                @Html.ValidationMessageFor(
+                    m => m.UserName,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== PASSWORD ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.Password)
+                @Html.PasswordFor(
+                    m => m.Password,
+                    new
+                    {
+                        @class = "form-control-modern",
+                        placeholder = "Ít nhất 6 ký tự"
+                    })
+                @Html.ValidationMessageFor(
+                    m => m.Password,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== CONFIRM PASSWORD ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.ConfirmPassword)
+                @Html.PasswordFor(
+                    m => m.ConfirmPassword,
+                    new
+                    {
+                        @class = "form-control-modern",
+                        placeholder = "Nhập lại mật khẩu"
+                    })
+                @Html.ValidationMessageFor(
+                    m => m.ConfirmPassword,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== HỌ TÊN ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.FullName)
+                @Html.TextBoxFor(
+                    m => m.FullName,
+                    new { @class = "form-control-modern" })
+                @Html.ValidationMessageFor(
+                    m => m.FullName,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== SỐ ĐIỆN THOẠI ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.Phone)
+                @Html.TextBoxFor(
+                    m => m.Phone,
+                    new { @class = "form-control-modern" })
+                @Html.ValidationMessageFor(
+                    m => m.Phone,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== EMAIL ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.Email)
+                @Html.TextBoxFor(
+                    m => m.Email,
+                    new { @class = "form-control-modern" })
+                @Html.ValidationMessageFor(
+                    m => m.Email,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            @* ==================== ĐỊA CHỈ ==================== *@
+            <div class="auth-field">
+                @Html.LabelFor(m => m.Address)
+                @Html.TextBoxFor(
+                    m => m.Address,
+                    new { @class = "form-control-modern" })
+                @Html.ValidationMessageFor(
+                    m => m.Address,
+                    "",
+                    new { @class = "text-danger" })
+            </div>
+            <button type="submit"
+                    class="btn-brand auth-submit">
+                Đăng ký
+            </button>
+        }
+    </div>
+</div>
+2.4. CSS cho Sign Up/Login
+Bước 1. Mở file CSS chung của storefront (ví dụ Content/sportstore.css).
+Bước 2. Dán thêm cuối file.
+CSS thêm cuối file:
+/* =========================================================
+   B08 - SIGN UP / LOGIN
+   ========================================================= */
+/* ==================== KHUNG BAO TOÀN TRANG AUTH ==================== */
+.auth-page {
+    /* Dùng Flexbox để dễ căn khối form đăng ký/đăng nhập */
+    display: flex;
+    /* Căn card nằm giữa theo chiều ngang */
+    justify-content: center;
+    /* Tạo khoảng cách phía trên và dưới trang */
+    padding: 28px 0;
+}
+/* ==================== CARD CHỨA FORM ==================== */
+.auth-card {
+    /* Card có thể chiếm toàn bộ chiều rộng vùng chứa */
+    width: 100%;
+    /* Nhưng không rộng quá 520px */
+    max-width: 520px;
+    /* Khoảng cách từ nội dung tới viền card */
+    padding: 24px;
+    /* Nền trắng */
+    background: #ffffff;
+    /* Viền xám nhạt */
+    border: 1px solid #e2e8f0;
+    /* Bo tròn 4 góc */
+    border-radius: 14px;
+}
+    /* ==================== TIÊU ĐỀ TRONG CARD ==================== */
+    .auth-card h2 {
+        /* Bỏ khoảng cách mặc định phía trên của thẻ h2 */
+        margin-top: 0;
+    }
+/* ==================== DÒNG MÔ TẢ DƯỚI TIÊU ĐỀ ==================== */
+.auth-subtitle {
+    /* Tạo khoảng cách với phần form phía dưới */
+    margin-bottom: 20px;
+    /* Màu chữ xám để phân biệt với tiêu đề chính */
+    color: #64748b;
+}
+/* ==================== MỖI Ô NHẬP DỮ LIỆU ==================== */
+.auth-field {
+    /* Tạo khoảng cách giữa các field:
+       Username, Password, Email... */
+    margin-bottom: 14px;
+}
+    /* ==================== LABEL CỦA INPUT ==================== */
+    .auth-field label {
+        /* Mỗi label nằm trên một dòng riêng */
+        display: block;
+        /* Tạo khoảng cách giữa label và ô input */
+        margin-bottom: 6px;
+        /* Làm chữ label đậm hơn */
+        font-weight: 600;
+    }
+    /* ==================== Ô INPUT ==================== */
+    .auth-field .form-control-modern {
+        /* Input chiếm toàn bộ chiều rộng của card */
+        width: 100%;
+        /*
+       box-sizing: border-box
+       giúp width: 100% đã bao gồm:
+       - padding
+       - border
+       Nhờ vậy input không bị rộng vượt ra ngoài card.
+    */
+        box-sizing: border-box;
+        /* Khoảng cách chữ bên trong input */
+        padding: 10px 12px;
+        /* Viền xám nhạt */
+        border: 1px solid #cbd5e1;
+        /* Bo tròn góc input */
+        border-radius: 9px;
+    }
+        /* ==================== KHI CLICK VÀO INPUT ==================== */
+        .auth-field .form-control-modern:focus {
+            /*
+       Bỏ đường viền focus mặc định
+       của trình duyệt.
+    */
+            outline: none;
+            /*
+       Khi người dùng đang nhập,
+       đổi màu border sang xanh
+       để biết input đang được chọn.
+    */
+            border-color: #2563eb;
+        }
+/* ==================== NÚT SUBMIT ==================== */
+.auth-submit {
+    /* Nút Đăng ký / Đăng nhập rộng bằng card */
+    width: 100%;
+    /* Tạo khoảng cách với field phía trên */
+    margin-top: 6px;
+}
+/* ==================== LINK PHÍA DƯỚI FORM ==================== */
+.auth-bottom-link {
+    /*
+       Tạo khoảng cách với nút submit.
+       Ví dụ:
+       "Chưa có tài khoản? Đăng ký"
+    */
+    margin-top: 16px;
+    /* Căn nội dung ra giữa */
+    text-align: center;
+}
+/* ==================== THÔNG BÁO VALIDATION ==================== */
+.text-danger {
+    /* Hiển thị thông báo lỗi bằng màu đỏ */
+    color: #dc2626;
+    /* Cho chữ lỗi nhỏ hơn nội dung chính */
+    font-size: 13px;
+}
+2.5. Test chức năng 1
+Bước 1. Build → Build Solution.
+Bước 2. Chạy /Account/SignUp.
+Bước 3. Submit form trống → phải hiện các lỗi Required.
+Bước 4. Nhập Password dưới 6 ký tự → phải báo lỗi.
+Bước 5. Nhập ConfirmPassword khác Password → phải báo 'Mật khẩu nhập lại không khớp'.
+Bước 6. Nhập email sai định dạng → phải báo lỗi.
+Bước 7. Nhập đầy đủ hợp lệ → hiện 'Thông tin đăng ký hợp lệ'.
+Bước 8. View Data UserAccount/Customer → chưa có dữ liệu mới vì chức năng này chưa lưu CSDL.
+HOÀN THÀNH CHỨC NĂNG
+Form Sign Up và Validation chạy đúng. Chuyển sang chức năng 2 - Hash + Salt + tạo UserAccount → Customer.
+3. Chức năng 2 - Hash + Salt + tạo UserAccount → Customer
+MỤC TIÊU
+Không lưu Password dạng gõ. Tạo Salt ngẫu nhiên, dùng PBKDF2 để tạo PasswordHash, tạo UserAccount với Role = Customer, SaveChanges() để lấy UserID, sau đó tạo Customer gắn đúng UserID. Người dùng tuyệt đối không chọn UserID hoặc Role trên form.
+3.1. Tạo Models/PasswordHelper.cs
+Bước 1. Click phải Models → Add → Class...
+Bước 2. Đặt tên PasswordHelper.cs.
+Models/PasswordHelper.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Security.Cryptography;
+namespace DBSportStore.Models
+{
+    // =========================================================
+    // HELPER XỬ LÝ PASSWORD CHO BÀI THỰC HÀNH
+    // =========================================================
+    public static class PasswordHelper
+    {
+        // =====================================================
+        // TẠO SALT NGẪU NHIÊN
+        // =====================================================
+        public static string CreateSalt()
+        {
+            // Tạo mảng 16 byte.
+            // Mỗi tài khoản sẽ có Salt khác nhau.
+            byte[] saltBytes =
+                new byte[16];
+            // RandomNumberGenerator tạo dữ liệu ngẫu nhiên
+            // phù hợp hơn Random thông thường cho mục đích bảo mật.
+            using (var rng =
+                RandomNumberGenerator.Create())
+            {
+                // Ghi dữ liệu ngẫu nhiên vào saltBytes.
+                rng.GetBytes(saltBytes);
+            }
+            // CSDL lưu chuỗi, nên chuyển byte[]
+            // thành chuỗi Base64 trước khi trả về.
+            return Convert.ToBase64String(
+                saltBytes);
+        }
+        // =====================================================
+        // HASH PASSWORD
+        // =====================================================
+        public static string Hash(
+            string password,
+            string salt)
+        {
+            // Chuyển Salt từ chuỗi Base64 trong CSDL
+            // trở lại thành byte[].
+            byte[] saltBytes =
+                Convert.FromBase64String(salt);
+            // Rfc2898DeriveBytes triển khai PBKDF2.
+            //
+            // password:
+            // mật khẩu người dùng nhập.
+            //
+            // saltBytes:
+            // Salt riêng của tài khoản.
+            //
+            // 100000:
+            // số vòng lặp dùng để làm việc dò mật khẩu chậm hơn.
+            using (var pbkdf2 =
+                new Rfc2898DeriveBytes(
+                    password,
+                    saltBytes,
+                    100000))
+            {
+                // Lấy 32 byte kết quả hash.
+                byte[] hashBytes =
+                    pbkdf2.GetBytes(32);
+                // Chuyển hash thành Base64
+                // để lưu vào UserAccount.PasswordHash.
+                return Convert.ToBase64String(
+                    hashBytes);
+            }
+        }
+        // =====================================================
+        // KIỂM TRA PASSWORD KHI LOGIN
+        // =====================================================
+        public static bool Verify(
+            string password,
+            string salt,
+            string storedHash)
+        {
+            // Hash lại Password người dùng vừa nhập
+            // bằng đúng Salt đã lưu trong CSDL.
+            string newHash =
+                Hash(password, salt);
+            // Hai chuỗi hash giống nhau
+            // nghĩa là Password nhập vào đúng.
+            return newHash == storedHash;
+        }
+    }
+}
+3.2. Thay SignUp POST bằng phiên bản lưu CSDL
+Bước 1. Mở Controllers/AccountController.cs.
+Bước 2. Thêm các namespace sau nếu chưa có.
+Namespace cần thêm:
+using System;using System.Linq;
+Bước 3. Giữ nguyên SignUp GET. Thay TOÀN BỘ SignUp POST bản test bằng code sau.
+Code mới - SignUp POST:
+// =====================================================
+// SIGN UP - TẠO USERACCOUNT VÀ CUSTOMER
+// =====================================================
+[HttpPost]
+[ValidateAntiForgeryToken]
+public ActionResult SignUp(
+    SignUpViewModel model)
+{
+    // Dữ liệu form phải hợp lệ trước khi xử lý CSDL.
+    if (!ModelState.IsValid)
+    {
+        return View(model);
+    }
+    // =================================================
+    // 1. KIỂM TRA USERNAME
+    // =================================================
+    // Any() trả true nếu đã có UserAccount
+    // sử dụng đúng UserName người dùng đang nhập.
+    bool userNameExists =
+        db.UserAccount.Any(
+            u => u.UserName == model.UserName);
+    if (userNameExists)
+    {
+        // Gắn lỗi trực tiếp vào ô UserName.
+        ModelState.AddModelError(
+            "UserName",
+            "Tên đăng nhập đã tồn tại.");
+        return View(model);
+    }
+    // =================================================
+    // 2. LẤY ROLE CUSTOMER
+    // =================================================
+    // Tài khoản đăng ký công khai luôn là Customer.
+    // Người dùng KHÔNG được chọn Role từ form.
+    var customerRole =
+        db.Role.FirstOrDefault(
+            r => r.RoleName == "Customer");
+    if (customerRole == null)
+    {
+        ModelState.AddModelError(
+            "",
+            "Không tìm thấy Role Customer.");
+        return View(model);
+    }
+    // =================================================
+    // 3. TẠO SALT + PASSWORD HASH
+    // =================================================
+    // Mỗi tài khoản tạo một Salt mới.
+    string salt =
+        PasswordHelper.CreateSalt();
+    // PasswordHash được tạo từ Password + Salt.
+    string passwordHash =
+        PasswordHelper.Hash(
+            model.Password,
+            salt);
+    // =================================================
+    // 4. BẮT ĐẦU TRANSACTION
+    // =================================================
+    // UserAccount và Customer phải cùng được tạo thành công.
+    // Nếu một bước lỗi -> rollback toàn bộ.
+    using (var transaction =
+        db.Database.BeginTransaction())
+    {
+        try
+        {
+            // =============================================
+            // 4.1. TẠO USERACCOUNT
+            // =============================================
+            var account = new UserAccount
+            {
+                UserName = model.UserName,
+                // Không lưu Password dạng rõ.
+                PasswordHash = passwordHash,
+                PasswordSalt = salt,
+                // Gán Role Customer lấy từ CSDL.
+                RoleID = customerRole.RoleID,
+                IsActive = true,
+                // Ghi thời điểm tạo tài khoản.
+                CreatedAt = DateTime.Now
+            };
+            // Đánh dấu entity cần INSERT.
+            db.UserAccount.Add(account);
+            // Ghi UserAccount xuống CSDL.
+            db.SaveChanges();
+            // Sau SaveChanges(), SQL Server sinh UserID.
+            // EF tự cập nhật giá trị vào account.UserID.
+            // =============================================
+            // 4.2. TẠO CUSTOMER GẮN VỚI USERID VỪA SINH
+            // =============================================
+            var customer = new Customer
+            {
+                // Đây là UserID do SQL Server sinh.
+                // KHÔNG lấy UserID từ dropdown hoặc từ form.
+                UserID = account.UserID,
+                FullName = model.FullName,
+                Phone = model.Phone,
+                Email = model.Email,
+                Address = model.Address
+            };
+            db.Customer.Add(customer);
+            db.SaveChanges();
+            // Cả UserAccount và Customer đều thành công.
+            transaction.Commit();
+            TempData["SignUpSuccess"] =
+                "Đăng ký thành công. "
+                + "Vui lòng đăng nhập.";
+            // Chức năng 3 sẽ tạo trang Login hoàn chỉnh.
+            return RedirectToAction("Login");
+        }
+        catch
+        {
+            // Có lỗi -> hủy toàn bộ thay đổi
+            // trong transaction.
+            transaction.Rollback();
+            ModelState.AddModelError(
+                "",
+                "Có lỗi khi tạo tài khoản. "
+                + "Vui lòng thử lại.");
+            return View(model);
+        }
+    }
+}
+3.3. Bổ sung LoginViewModel và Login GET tạm
+Bước 1. Mở AccountViewModels.cs.
+Bước 2. Thêm class LoginViewModel bên dưới SignUpViewModel.
+Code thêm vào AccountViewModels.cs:
+// =========================================================
+// VIEWMODEL DÙNG CHO FORM LOGIN
+// =========================================================
+public class LoginViewModel
+{
+    [Required(
+        ErrorMessage = "Vui lòng nhập tên đăng nhập.")]
+    [Display(Name = "Tên đăng nhập")]
+    public string UserName { get; set; }
+    [Required(
+        ErrorMessage = "Vui lòng nhập mật khẩu.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Mật khẩu")]
+    public string Password { get; set; }
+}
+Bước 3. Trong AccountController thêm Login GET tạm để Sign Up redirect không lỗi.
+Action Login GET tạm:
+// GET: mở trang Login.
+// Chức năng 3 sẽ bổ sung Login POST.
+[HttpGet]
+public ActionResult Login()
+{
+    return View();
+}
+Bước 4. Tạo Views/Account/Login.cshtml bản tạm.
+Views/Account/Login.cshtml - bản tạm:
+@{
+    ViewBag.Title = "Đăng nhập";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+<div class="auth-page">
+    <div class="auth-card">
+        <h2>Đăng nhập</h2>
+        @if (TempData["SignUpSuccess"] != null)
+        {
+            <div class="cart-message cart-message-success">
+                @TempData["SignUpSuccess"]
+            </div>
+        }
+        <p>
+            Chức năng Login sẽ hoàn thiện ở phần 4.
+        </p>
+    </div>
+</div>
+3.4. Test chức năng 2
+Bước 1. Build → chạy /Account/SignUp.
+Bước 2. Đăng ký một tài khoản mới, ví dụ username = customer01.
+Bước 3. Phải chuyển sang /Account/Login và hiện thông báo đăng ký thành công.
+Bước 4. View Data UserAccount → có dòng mới, RoleID là Customer, IsActive = true.
+Bước 5. PasswordHash và PasswordSalt phải có giá trị; PasswordHash không giống Password đã nhập.
+Bước 6. View Data Customer → có Customer mới, UserID đúng bằng UserID của UserAccount vừa tạo.
+Bước 7. Đăng ký lại cùng UserName → phải báo 'Tên đăng nhập đã tồn tại'.
+Bước 8. Đăng ký hai tài khoản khác nhau với cùng Password → Salt/Hash phải khác nhau.
+HOÀN THÀNH CHỨC NĂNG
+Sign Up đã tạo đúng UserAccount → Customer và không lưu Password dạng rõ. Chuyển sang chức năng 3 - Login + Session.
+4. Chức năng 3 - Login + Session
+MỤC TIÊU
+Kiểm tra Username + Password bằng PasswordHash/PasswordSalt. Nếu đúng, lưu UserID, UserName, Role, CustomerID và FullName vào Session để hệ thống biết người dùng hiện tại là ai.
+4.1. Thêm Login POST vào AccountController
+Bước 1. Mở AccountController.cs.
+Bước 2. Thêm namespace sau ở đầu file nếu chưa có.
+Namespace cần thêm:
+using System.Data.Entity;
+Bước 3. Giữ Login GET. Thêm Login POST sau.
+Code thêm vào AccountController.cs:
+// =====================================================
+// LOGIN
+// =====================================================
+[HttpPost]
+[ValidateAntiForgeryToken]
+public ActionResult Login(
+    LoginViewModel model)
+{
+    // Validation form phải hợp lệ.
+    if (!ModelState.IsValid)
+    {
+        return View(model);
+    }
+    // =================================================
+    // 1. TÌM USERACCOUNT
+    // =================================================
+    // Include(Role) để lấy thêm RoleName
+    // của tài khoản trong cùng truy vấn.
+    var account = db.UserAccount
+        .Include(u => u.Role)
+        .FirstOrDefault(
+            u => u.UserName == model.UserName
+              && u.IsActive);
+    // Không tìm thấy User hoặc tài khoản bị khóa.
+    if (account == null)
+    {
+        ModelState.AddModelError(
+            "",
+            "Tên đăng nhập hoặc mật khẩu không đúng.");
+        return View(model);
+    }
+    // =================================================
+    // 2. KIỂM TRA PASSWORD
+    // =================================================
+    // Verify():
+    // - lấy Password người dùng vừa nhập
+    // - Hash lại bằng PasswordSalt trong CSDL
+    // - so sánh với PasswordHash đã lưu.
+    bool passwordCorrect =
+        PasswordHelper.Verify(
+            model.Password,
+            account.PasswordSalt,
+            account.PasswordHash);
+    if (!passwordCorrect)
+    {
+        ModelState.AddModelError(
+            "",
+            "Tên đăng nhập hoặc mật khẩu không đúng.");
+        return View(model);
+    }
+    // =================================================
+    // 3. LƯU TRẠNG THÁI LOGIN VÀO SESSION
+    // =================================================
+    // Session thuộc riêng phiên làm việc hiện tại.
+    // Các trang khác có thể đọc lại những giá trị này.
+    Session["UserID"] =
+        account.UserID;
+    Session["UserName"] =
+        account.UserName;
+    // RoleName có giá trị Admin hoặc Customer.
+    Session["Role"] =
+        account.Role.RoleName;
+    // =================================================
+    // 4. NẾU LÀ CUSTOMER -> LẤY HỒ SƠ CUSTOMER
+    // =================================================
+    var customer = db.Customer
+        .FirstOrDefault(
+            c => c.UserID == account.UserID);
+    if (customer != null)
+    {
+        Session["CustomerID"] =
+            customer.CustomerID;
+        Session["FullName"] =
+            customer.FullName;
+    }
+    else
+    {
+        // Admin có thể không có Customer.
+        Session.Remove("CustomerID");
+        Session.Remove("FullName");
+    }
+    // =================================================
+    // 5. CHUYỂN TRANG SAU LOGIN
+    // =================================================
+    // Admin vào trang quản trị.
+    if (account.Role.RoleName == "Admin")
+    {
+        return RedirectToAction(
+            "Index",
+            "Admin");
+    }
+    // Customer quay về Trang Chủ.
+    return RedirectToAction(
+        "Index",
+        "Store");
+}
+4.2. Thay Login View tạm bằng form đầy đủ
+Views/Account/Login.cshtml - code mới:
+@* =========================================================
+    VIEW LOGIN
+    View này nhận dữ liệu từ LoginViewModel
+    ========================================================= *@
+@model DBSportStore.Models.LoginViewModel
+@{
+    // Tiêu đề hiển thị trên tab trình duyệt.
+    ViewBag.Title = "Đăng nhập";
+    // Dùng Layout chung của website SportStore.
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+@* ==================== KHUNG TRANG LOGIN ==================== *@
+<div class="auth-page">
+    @* Card chứa toàn bộ form đăng nhập *@
+    <div class="auth-card">
+        <h2>Đăng nhập</h2>
+        <p class="auth-subtitle">
+            Đăng nhập bằng tài khoản đã đăng ký.
+        </p>
+        @* ==================== THÔNG BÁO SAU SIGN UP ==================== *@
+        @*
+            Sau khi đăng ký thành công,
+            SignUp action lưu thông báo vào TempData["SignUpSuccess"]
+            rồi Redirect sang Login.
+            TempData phù hợp với trường hợp Redirect
+            vì dữ liệu vẫn tồn tại sang request kế tiếp.
+        *@
+        @if (TempData["SignUpSuccess"] != null)
+        {
+            <div class="cart-message cart-message-success">
+                @* Hiển thị thông báo:
+                    "Đăng ký thành công. Vui lòng đăng nhập." *@
+                @TempData["SignUpSuccess"]
+            </div>
+        }
+        @* ==================== FORM LOGIN ==================== *@
+        @*
+            Khi người dùng bấm nút Đăng nhập,
+            form gửi dữ liệu bằng POST đến:
+            AccountController.Login(LoginViewModel model)
+        *@
+        @using (Html.BeginForm(
+            "Login",
+            "Account",
+            FormMethod.Post))
+        {
+            @* Tạo Anti-Forgery Token để bảo vệ form POST khỏi CSRF. *@
+            @Html.AntiForgeryToken()
+            @* ==================== LỖI LOGIN CHUNG ==================== *@
+            @*
+                Hiển thị các lỗi chung được Controller thêm bằng:
+                ModelState.AddModelError("", "...");
+                true:
+                chỉ hiển thị lỗi chung,
+                không lặp lại lỗi của từng property.
+            *@
+            @Html.ValidationSummary(
+                     true,
+                     "",
+                     new { @class = "text-danger" })
+            @* =================================================
+                USERNAME
+                ================================================= *@
+            <div class="auth-field">
+                @*
+                    LabelFor lấy tên hiển thị từ:
+                    [Display(Name = "Tên đăng nhập")]
+                    trong LoginViewModel.
+                *@
+                @Html.LabelFor(m => m.UserName)
+                @*
+                    TextBoxFor tạo ô nhập UserName.
+                    m => m.UserName:
+                    liên kết ô nhập với property UserName
+                    trong LoginViewModel.
+                *@
+                @Html.TextBoxFor(
+                         m => m.UserName,
+                         new
+                         {
+                             // Class CSS dùng để định dạng input.
+                             @class = "form-control-modern",
+                             // Chữ gợi ý khi ô nhập đang trống.
+                             placeholder = "Tên đăng nhập"
+                         })
+                @*
+                    Hiển thị lỗi Validation riêng của UserName.
+                    Ví dụ:
+                    "Vui lòng nhập tên đăng nhập."
+                *@
+                @Html.ValidationMessageFor(
+                         m => m.UserName,
+                         "",
+                         new { @class = "text-danger" })
+            </div>
+            @* =================================================
+                PASSWORD
+                ================================================= *@
+            <div class="auth-field">
+                @* Hiển thị Label "Mật khẩu". *@
+                @Html.LabelFor(m => m.Password)
+                @*
+                    PasswordFor tạo ô nhập kiểu password.
+                    Ký tự người dùng nhập sẽ được che lại
+                    thay vì hiển thị trực tiếp trên màn hình.
+                *@
+                @Html.PasswordFor(
+                         m => m.Password,
+                         new
+                         {
+                             @class = "form-control-modern",
+                             placeholder = "Mật khẩu"
+                         })
+                @*
+                    Hiển thị lỗi Validation riêng của Password.
+                    Ví dụ:
+                    "Vui lòng nhập mật khẩu."
+                *@
+                @Html.ValidationMessageFor(
+                         m => m.Password,
+                         "",
+                         new { @class = "text-danger" })
+            </div>
+            @* ==================== NÚT LOGIN ==================== *@
+            @*
+                type="submit":
+                khi click sẽ gửi toàn bộ dữ liệu form
+                về Login action bằng POST.
+            *@
+            <button type="submit"
+                    class="btn-brand auth-submit">
+                Đăng nhập
+            </button>
+        }
+        @* ==================== LINK ĐĂNG KÝ ==================== *@
+        <p class="auth-bottom-link">
+            Chưa có tài khoản?
+            @*
+                Url.Action tạo URL tới:
+                AccountController.SignUp()
+                Kết quả thường là:
+                /Account/SignUp
+            *@
+            <a href="@Url.Action(
+                "SignUp",
+                "Account")">
+                Đăng ký
+            </a>
+        </p>
+    </div>
+</div>
+4.3. Session đang giữ gì?
+Session
+Ý nghĩa
+Session["UserID"]
+UserID của UserAccount đang đăng nhập
+Session["UserName"]
+Tên đăng nhập
+Session["Role"]
+Admin hoặc Customer
+Session["CustomerID"]
+CustomerID tương ứng nếu có
+Session["FullName"]
+Họ tên Customer để hiển thị
+4.4. Test chức năng 3
+Bước 1. Build → chạy /Account/Login.
+Bước 2. Nhập UserName không tồn tại → phải báo lỗi.
+Bước 3. Nhập UserName đúng nhưng Password sai → phải báo lỗi.
+Bước 4. Nhập đúng UserName + Password của Customer vừa Sign Up → phải quay về /Store/Index.
+Bước 5. Đặt breakpoint trong Login hoặc kiểm tra Watch: Session UserID, UserName, Role, CustomerID, FullName phải có giá trị.
+Bước 6. Role của tài khoản Customer phải là Customer.
+HOÀN THÀNH CHỨC NĂNG
+Login kiểm tra PasswordHash/Salt đúng và Session đã giữ thông tin tài khoản hiện tại. Chuyển sang chức năng 4 - Logout.
+5. Chức năng 4 - Logout
+MỤC TIÊU
+Xóa các Session liên quan tài khoản khi người dùng đăng xuất nhưng KHÔNG xóa Session["Cart"], để giỏ hàng B07 không bị mất.
+5.1. Thêm Logout POST vào AccountController
+Code thêm vào AccountController.cs:
+// =====================================================
+// LOGOUT
+// =====================================================
+// Dùng POST vì Logout làm thay đổi trạng thái phiên đăng nhập.
+[HttpPost]
+[ValidateAntiForgeryToken]
+public ActionResult Logout()
+{
+    // Chỉ xóa các Session liên quan tài khoản.
+    Session.Remove("UserID");
+    Session.Remove("UserName");
+    Session.Remove("Role");
+    Session.Remove("CustomerID");
+    Session.Remove("FullName");
+    // KHÔNG gọi Session.Clear().
+    // Session.Clear() sẽ xóa luôn Session["Cart"] của B07.
+    return RedirectToAction(
+        "Index",
+        "Store");
+}
+5.2. Tạo nút Logout tạm để test
+Menu chính sẽ hoàn thiện ở chức năng 6. Tạm thời có thể chèn form sau vào _StoreLayout.cshtml để test Logout:
+Code test tạm trong _StoreLayout.cshtml:
+@* Các chức năng sẽ thực hiện ở các buổi sau *@
+@* Giỏ hàng *@
+@{ Html.RenderAction(
+        "BagCart",
+        "ShoppingCart");
+}
+@* ==================== ĐĂNG NHẬP / ĐĂNG XUẤT ==================== *@
+@* Nếu chưa đăng nhập thì hiển thị link Đăng nhập *@
+@if (Session["UserID"] == null)
+{
+    @Html.ActionLink(
+        "Đăng nhập",
+        "Login",
+        "Account")
+}
+@* Nếu đã đăng nhập thì hiển thị nút Đăng xuất *@
+else
+{
+    using (Html.BeginForm(
+        "Logout",
+        "Account",
+        FormMethod.Post,
+        new { @class = "nav-logout-form" }))
+    {
+        @Html.AntiForgeryToken()
+        <button type="submit"
+                class="nav-link-button">
+            Đăng xuất
+        </button>
+    }
+}
+5.3. Test chức năng 4
+Bước 1. Thêm một Product vào Cart.
+Bước 2. Login bằng Customer.
+Bước 3. Click Đăng xuất.
+Bước 4. Kiểm tra Session UserID/Role/CustomerID đã bị xóa.
+Bước 5. Mở Giỏ hàng → Product đã thêm trước đó vẫn còn.
+HOÀN THÀNH CHỨC NĂNG
+Logout đã xóa Session tài khoản nhưng không làm mất Cart. Chuyển sang chức năng 5 - Role + phân quyền Admin.
+6. Chức năng 5 - Role Admin / Customer + phân quyền Admin
+MỤC TIÊU
+Sign Up công khai chỉ tạo Role Customer. Tạo Admin mẫu dùng trong lab và một AdminAuthorizeAttribute ngắn để chặn Guest/Customer truy cập URL quản trị.
+6.1. Tạo Admin mẫu cho lab
+CHỈ DÙNG TRONG THỰC HÀNH
+Action dưới đây chỉ để tạo Admin mẫu một lần. Sau khi tạo thành công phải xóa hoặc comment action này. Không để website thật có URL công khai dùng để tạo Admin.
+Code tạm thêm vào AccountController.cs:
+// =====================================================
+ // TẠO ADMIN MẪU - CHỈ DÙNG TRONG LAB
+ // =====================================================
+ public ActionResult CreateAdminForLab()
+ {
+     // Nếu admin01 đã tồn tại thì không tạo lại.
+     bool adminExists =
+         db.UserAccount.Any(
+             u => u.UserName == "admin01");
+     if (adminExists)
+     {
+         return Content(
+             "Admin mẫu đã tồn tại.");
+     }
+     // Tìm Role Admin trong bảng Role.
+     var adminRole =
+         db.Role.FirstOrDefault(
+             r => r.RoleName == "Admin");
+     if (adminRole == null)
+     {
+         return Content(
+             "Không tìm thấy Role Admin.");
+     }
+     // Tạo Salt riêng cho Admin.
+     string salt =
+         PasswordHelper.CreateSalt();
+     var admin =
+         new UserAccount
+         {
+             UserName = "admin01",
+             PasswordSalt = salt,
+             // Password lab: Admin123
+             PasswordHash =
+                 PasswordHelper.Hash(
+                     "Admin123",
+                     salt),
+             RoleID = adminRole.RoleID,
+             IsActive = true,
+             CreatedAt = DateTime.Now
+         };
+     db.UserAccount.Add(admin);
+     db.SaveChanges();
+     return Content(
+         "Đã tạo admin01 / Admin123. "
+         + "Hãy xóa action CreateAdminForLab.");
+ }
+6.2. Tạo trang test quyền Admin
+Bước 1. Mở AccountController.cs.
+Bước 2. Thêm action sau:
+// =====================================================
+// TRANG TEST QUYỀN ADMIN
+// =====================================================
+// Action này dùng để kiểm tra
+// tài khoản hiện tại có Role Admin hay không.
+public ActionResult AdminTest()
+{
+    // Kiểm tra người dùng đã Login hay chưa.
+    if (Session["UserID"] == null)
+    {
+        // Chưa Login thì quay về trang Login.
+        return RedirectToAction("Login");
+    }
+    // Lấy Role của tài khoản hiện tại từ Session.
+    string role =
+        Session["Role"] == null
+        ? ""
+        : Session["Role"].ToString();
+    // Nếu không phải Admin thì không cho vào trang này.
+    if (role != "Admin")
+    {
+        return Content(
+            "Bạn không có quyền truy cập trang Admin.");
+    }
+    // Nếu Role = Admin thì hiển thị thông báo thành công.
+    return Content(
+        "Đăng nhập Admin thành công. "
+        + "Bạn đang có quyền Admin.");
+}
+6.3. Test tài khoản Admin
+Bước 1. Mở AccountController.cs → trong action Login POST, sửa phần chuyển trang sau khi Login thành công:
+// Nếu tài khoản có Role Admin,
+// chuyển sang trang test quyền Admin.
+if (account.Role.RoleName == "Admin")
+{
+    return RedirectToAction(
+        "AdminTest",
+        "Account");
+}
+// Customer đăng nhập thành công
+// thì quay về Trang Chủ.
+return RedirectToAction(
+    "Index",
+    "Store");
+Bước 2. Build project → nhấn F5 hoặc Ctrl + F5 để chạy website.
+Bước 3. Mở:
+/Account/Login
+và đăng nhập bằng:
+UserName: admin01
+Password: Admin123
+Bước 4. Nếu Login thành công và:
+Session["Role"] = "Admin"
+hệ thống phải tự chuyển đến:
+/Account/AdminTest
+và hiển thị:
+Đăng nhập Admin thành công.
+Bạn đang có quyền Admin.
+Bước 5. Logout → đăng nhập bằng tài khoản Customer: 
+Gõ lên thanh: http://localhost:60896/Account/Login
+UserName: customer03
+Password: Web456
+Customer phải quay về /Store/Index.
+Bước 6. Sau khi Customer Login, nhập trực tiếp:
+/Account/AdminTest
+phải hiển thị:
+Bạn không có quyền truy cập trang Admin.
+Nếu cả hai trường hợp trên đúng thì Role Admin và Customer đã được phân biệt chính xác.
+6.4. Tạo Filters/AdminAuthorizeAttribute.cs
+Bước 1. Click phải project → Add → New Folder → đặt tên Filters.
+Bước 2. Click phải Filters → Add → Class...
+Bước 3. Đặt tên AdminAuthorizeAttribute.cs.
+Filters/AdminAuthorizeAttribute.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using System.Web.Routing;
+namespace DBSportStore.Filters
+{
+    // =========================================================
+    // ATTRIBUTE KIỂM TRA QUYỀN ADMIN
+    // =========================================================
+    // Kế thừa AuthorizeAttribute để có thể gắn
+    // [AdminAuthorize] lên Controller hoặc Action.
+    public class AdminAuthorizeAttribute
+        : AuthorizeAttribute
+    {
+        // =====================================================
+        // KIỂM TRA REQUEST CÓ PHẢI ADMIN HAY KHÔNG
+        // =====================================================
+        protected override bool AuthorizeCore(
+            HttpContextBase httpContext)
+        {
+            // Chưa có UserID trong Session
+            // nghĩa là chưa Login.
+            if (httpContext.Session["UserID"] == null)
+            {
+                return false;
+            }
+            // Convert.ToString() tránh lỗi nếu Session["Role"] null.
+            string role =
+                Convert.ToString(
+                    httpContext.Session["Role"]);
+            // Chỉ Role Admin mới trả true.
+            return role == "Admin";
+        }
+        // =====================================================
+        // XỬ LÝ KHI KHÔNG CÓ QUYỀN
+        // =====================================================
+        protected override void HandleUnauthorizedRequest(
+            AuthorizationContext filterContext)
+        {
+            // Chưa Login -> chuyển về trang Login.
+            if (filterContext.HttpContext
+                .Session["UserID"] == null)
+            {
+                filterContext.Result =
+                    new RedirectToRouteResult(
+                        new RouteValueDictionary(
+                            new
+                            {
+                                controller = "Account",
+                                action = "Login"
+                            }));
+                return;
+            }
+            // Đã Login nhưng không phải Admin
+            // -> trả về HTTP 403 Forbidden.
+            filterContext.Result =
+                new HttpStatusCodeResult(
+                    403,
+                    "Bạn không có quyền truy cập trang quản trị.");
+        }
+    }
+}
+6.5. Tạo AdminController để test quyền
+Controllers/AdminController.cs
+using DBSportStore.Filters;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+namespace DBSportStore.Controllers
+{
+    // Gắn trên class:
+    // mọi action trong AdminController
+    // đều phải qua kiểm tra AdminAuthorize.
+    [AdminAuthorize]
+    public class AdminController : Controller
+    {
+        public ActionResult Index()
+        {
+            return View();
+        }
+    }
+}
+6.6. Tạo Views/Admin/Index.cshtml
+Views/Admin/Index.cshtml
+@{
+    ViewBag.Title = "Quản trị";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+<h2 class="section-title">
+    Trang quản trị
+</h2>
+<div class="admin-grid">
+    <a class="admin-card"
+       href="@Url.Action(
+           "Index",
+           "Products")">
+        <h3>Quản lý sản phẩm</h3>
+        <p>Thêm, sửa, xóa sản phẩm.</p>
+    </a>
+    <a class="admin-card"
+       href="@Url.Action(
+           "Index",
+           "Categories")">
+        <h3>Quản lý danh mục</h3>
+        <p>Thêm, sửa, xóa danh mục.</p>
+    </a>
+    <a class="admin-card"
+       href="@Url.Action(
+           "Index",
+           "Orders")">
+        <h3>Quản lý đơn hàng</h3>
+        <p>Xem đơn và cập nhật trạng thái.</p>
+    </a>
+</div>
+CSS thêm cuối file Content/sportstore.css:
+/* =========================================================
+   B08 - ADMIN DASHBOARD
+   ========================================================= */
+.admin-grid {
+    display: grid;
+    /* 3 card cùng một hàng trên màn hình lớn */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+.admin-card {
+    display: block;
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #0f172a;
+}
+    .admin-card:hover {
+        border-color: #2563eb;
+    }
+    .admin-card h3 {
+        margin-top: 0;
+    }
+@media (max-width: 800px) {
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+6.7. Test chức năng 5
+Bước 1. Logout → nhập trực tiếp /Admin → phải chuyển về /Account/Login.
+Bước 2. Login bằng Customer → nhập trực tiếp /Admin → phải nhận lỗi 403, không vào trang quản trị.
+Bước 3. Gõ http://localhost:xxxxx/Account/Login → Login bằng [admin01 / Admin123] → /Admin phải vào được.
+HOÀN THÀNH CHỨC NĂNG
+Role Admin/Customer và phân quyền URL đã hoạt động. Chuyển sang chức năng 6 - Menu theo trạng thái Login.
+7. Chức năng 6 - Menu thay đổi theo trạng thái Login
+MỤC TIÊU
+Guest thấy Đăng ký/Đăng nhập; Customer thấy tên người dùng + Đăng xuất; Admin thấy thêm các menu quản trị. Phân quyền thật vẫn nằm ở Controller/Attribute, không chỉ dựa vào việc ẩn menu.
+7.1. Sửa vùng menu trong _StoreLayout.cshtml
+Mở Views/Shared/_StoreLayout.cshtml. Giữ nguyên logo và cấu trúc navbar đang có. Tại vùng menu tài khoản/quản trị, dùng logic sau:
+Logic menu mới:
+<nav class="store-nav">
+    @* Các trang đã có Controller *@
+    @* Giới thiệu: StoreController.AboutStore() *@
+    @Html.ActionLink("Giới thiệu", "AboutStore", "Store")
+    @* ==================== MENU CHUNG ==================== *@
+    @* Trang chủ: StoreController.Index() *@
+    <a href="@Url.Action(
+        "Index",
+        "Store")">
+        Trang chủ
+    </a>
+    @* Giỏ hàng - Cart của B07 vẫn giữ nguyên *@
+    @{ Html.RenderAction(
+            "BagCart",
+            "ShoppingCart");
+    }
+    @* ==================== GUEST ==================== *@
+    @if (Session["UserID"] == null)
+    {
+        <a href="@Url.Action(
+            "SignUp",
+            "Account")">
+            Đăng ký
+        </a>
+        <a href="@Url.Action(
+            "Login",
+            "Account")">
+            Đăng nhập
+        </a>
+    }
+    @* ==================== ĐÃ LOGIN ==================== *@
+    else
+    {
+        @* Chỉ Admin mới thấy các menu quản trị *@
+        if (Convert.ToString(
+            Session["Role"]) == "Admin")
+        {
+            <a href="@Url.Action(
+                "Index",
+                "Admin")">
+                Quản trị
+            </a>
+            <a href="@Url.Action(
+                "Index",
+                "Products")">
+                Sản phẩm
+            </a>
+            <a href="@Url.Action(
+                "Index",
+                "Categories")">
+                Danh mục
+            </a>
+            <a href="@Url.Action(
+                "Index",
+                "Orders")">
+                Đơn hàng
+            </a>
+        }
+        @* Hiển thị họ tên nếu có,
+nếu không thì hiển thị UserName *@
+        <span class="nav-user">
+            Xin chào
+            @(Session["FullName"]
+             ?? Session["UserName"])
+        </span>
+        @* Logout dùng POST *@
+        using (Html.BeginForm(
+            "Logout",
+            "Account",
+            FormMethod.Post,
+            new { @class = "nav-logout-form" }))
+        {
+            @Html.AntiForgeryToken()
+            <button type="submit"
+                    class="nav-link-button">
+                Đăng xuất
+            </button>
+        }
+    }               
+</nav>
+CSS thêm cuối file Content/sportstore.css :
+/* ==================== MENU LOGIN ==================== */
+.nav-user {
+    font-weight: 600;
+    color: #2563eb;
+}
+.nav-logout-form {
+    display: inline;
+    margin: 0;
+}
+.nav-link-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+7.2. Test chức năng 6
+Bước 1. Mở AccountController.cs → tìm action Login POST.
+Ở phần cuối action, sửa phần chuyển trang sau khi Login thành công thành:
+// Nếu tài khoản có Role Admin,
+// chuyển sang trang test quyền Admin.
+/* if (account.Role.RoleName == "Admin")
+ {
+     return RedirectToAction(
+         "AdminTest",
+         "Account");
+ }
+*/
+// ==================== CHUYỂN TRANG SAU KHI LOGIN ====================
+// Sau khi Login thành công,
+// cả Customer và Admin đều quay về Trang Chủ.
+//
+// _StoreLayout.cshtml sẽ đọc:
+// Session["UserID"]
+// Session["UserName"]
+// Session["Role"]
+//
+// để quyết định menu cần hiển thị.
+return RedirectToAction(
+    "Index",
+    "Store");
+Từ bước này trở đi không chuyển Admin đến AdminTest() nữa. AdminTest() chỉ dùng ở phần trước để xác nhận Role Admin hoạt động đúng.
+Bước 2. Build project → chạy website.
+Logout nếu đang đăng nhập.
+Menu ở trạng thái Guest phải hiển thị:
+Đăng ký | Đăng nhập
+và không có các menu quản trị.
+Bước 3. Login bằng tài khoản Customer, ví dụ:
+UserName: customer04
+Password: Web456
+Sau khi Login thành công, hệ thống phải quay về:
+/Store/Index
+Menu phải hiển thị:
+Xin chào customer03 | Đăng xuất
+Customer không được thấy các menu:
+Quản trị
+Sản phẩm
+Danh mục
+Đơn hàng
+Bước 4. Click Đăng xuất → Login lại bằng tài khoản Admin:
+UserName: admin01
+Password: Admin123
+Sau khi Login thành công, hệ thống cũng quay về:
+/Store/Index
+Menu phải xuất hiện:
+Quản trị
+Sản phẩm
+Danh mục
+Đơn hàng
+Xin chào admin01
+Đăng xuất
+Bước 5. Click Đăng xuất.
+Hệ thống quay về Trang Chủ.
+Menu phải trở lại trạng thái Guest:
+Đăng ký | Đăng nhập
+và các menu quản trị phải biến mất.
+HOÀN THÀNH CHỨC NĂNG
+Menu đã thay đổi đúng theo trạng thái Login và Session["Role"].
+Hệ thống đã phân biệt đúng:
+Guest
+Customer
+Admin
+Chuyển sang chức năng tiếp theo: Customer đã Login → Checkout bằng Customer hiện tại.
+HOÀN THÀNH CHỨC NĂNG
+Menu đã thay đổi đúng theo Session Login và Role. Chuyển sang chức năng 7 - Customer Login Checkout bằng Customer hiện tại.
+8. Chức năng 7 - Customer Login → Checkout bằng Customer hiện tại
+MỤC TIÊU
+Giữ nguyên Guest Checkout của B07. Nếu Customer đã Login thì Checkout dùng CustomerID đang lưu trong Session, không tạo Customer mới; đồng thời tự điền thông tin hồ sơ vào form Checkout.
+8.1. Sửa Checkout GET
+Bước 1. Mở ShoppingCartController.cs.
+Bước 2. Tìm action Checkout() GET của B07.
+Bước 3. Thay action GET bằng phiên bản sau.
+Checkout GET - code mới:
+// =====================================================
+// MỞ FORM CHECKOUT
+// =====================================================
+public ActionResult Checkout()
+{
+    // Lấy Cart hiện tại từ Session.
+    var cart = GetCart();
+    // Không cho Checkout nếu giỏ trống.
+    if (!cart.Items.Any())
+    {
+        return RedirectToAction("ShowCart");
+    }
+    // Tạo ViewModel cho trang Checkout.
+    var model = new CheckoutViewModel
+    {
+        Cart = cart
+    };
+    // =================================================
+    // NẾU CUSTOMER ĐÃ LOGIN -> ĐIỀN SẴN HỒ SƠ
+    // =================================================
+    // CustomerID chỉ có khi Login bằng tài khoản
+    // đã gắn với một Customer.
+    if (Session["CustomerID"] != null)
+    {
+        // Session lưu object nên ép về int.
+        int customerId =
+            (int)Session["CustomerID"];
+        var customer =
+            db.Customer.Find(customerId);
+        if (customer != null)
+        {
+            model.FullName =
+                customer.FullName;
+            model.Phone =
+                customer.Phone;
+            model.Email =
+                customer.Email;
+            model.Address =
+                customer.Address;
+            // Mặc định địa chỉ giao hàng
+            // bằng địa chỉ hồ sơ Customer.
+            model.ShippingAddress =
+                customer.Address;
+        }
+    }
+    return View(model);
+}
+8.2. Sửa phần xác định Customer trong Checkout POST
+GIỮ NGUYÊN PHẦN CÒN LẠI
+Trong POST Checkout B07, GIỮ NGUYÊN: lấy Cart, gắn model.Cart, kiểm tra giỏ, ModelState, kiểm tra tồn kho, BeginTransaction, tạo OrderPro, tạo OrderDetail, trừ tồn kho, Commit, Clear Cart, Redirect OrderSuccess. Chỉ thay khối 'TẠO CUSTOMER MỚI CHO KHÁCH VÃNG LAI' bằng khối dưới đây.
+Code thay riêng khối tạo Customer:
+try
+{
+    // =====================================================
+    // 1. XÁC ĐỊNH CUSTOMER CỦA ĐƠN HÀNG
+    // =====================================================
+    Customer customer = null;
+    // =================================================
+    // TRƯỜNG HỢP 1: CUSTOMER ĐÃ LOGIN
+    // =================================================
+    if (Session["CustomerID"] != null)
+    {
+        // Lấy CustomerID đã lưu khi Login.
+        int customerId =
+            (int)Session["CustomerID"];
+        // Dùng đúng Customer hiện tại.
+        // KHÔNG tạo Customer mới.
+        customer =
+            db.Customer.Find(customerId);
+        if (customer == null)
+        {
+            ModelState.AddModelError(
+                "",
+                "Không tìm thấy hồ sơ khách hàng.");
+            return View(model);
+        }
+    }
+    // =================================================
+    // TRƯỜNG HỢP 2: GUEST
+    // =================================================
+    else
+    {
+        // Giữ nguyên nghiệp vụ B07:
+        // mỗi lần Guest Checkout tạo một Customer mới.
+        customer = new Customer
+        {
+            UserID = null,
+            FullName = model.FullName,
+            Phone = model.Phone,
+            Email = model.Email,
+            Address = model.Address
+        };
+        db.Customer.Add(customer);
+        db.SaveChanges();
+    }
+    // Sau khối này:
+    // - Guest có customer.CustomerID của Customer vừa tạo.
+    // - Member có customer.CustomerID của Customer đang Login.
+    //
+    // Phần tạo OrderPro phía dưới tiếp tục dùng:
+    // CustomerID = customer.CustomerID
+8.3. Vì sao OrderPro vẫn lưu RecipientName/ShippingPhone/ShippingAddress?
+SNAPSHOT THÔNG TIN GIAO HÀNG
+Dù Customer đã Login, OrderPro vẫn lấy RecipientName, ShippingPhone và ShippingAddress từ form Checkout của lần đặt hiện tại. Đây là snapshot: sau này Customer đổi hồ sơ, đơn cũ vẫn giữ đúng thông tin giao hàng tại thời điểm đặt.
+8.4. Test chức năng 7
+Bước 1. Logout → đặt một đơn Guest → bảng Customer phải tạo Customer mới với UserID = NULL như B07.
+Bước 2. Login Customer → thêm Product → Checkout.
+Bước 3. Form Checkout phải tự điền FullName, Phone, Email, Address.
+Bước 4. Đặt hàng.
+Bước 5. View Data Customer → KHÔNG phát sinh Customer mới.
+Bước 6. View Data OrderPro → CustomerID phải bằng CustomerID đang lưu trong Session.
+Bước 7. OrderPro vẫn lưu đúng RecipientName, ShippingPhone, ShippingAddress.
+HOÀN THÀNH CHỨC NĂNG
+B08 đã có hai luồng Checkout song song: Guest tạo Customer mới; Customer Login dùng hồ sơ hiện tại. PHẦN THỰC HÀNH CHÍNH B08 HOÀN TẤT. Chuyển sang Bài tập cuối buổi.
+9. Bài tập cuối buổi B08
+MỤC TIÊU
+Các bài tập dưới đây tiếp tục mở rộng project sau khi sinh viên đã hoàn thành phần thực hành chính B08. Không bắt buộc hoàn thành trong thời gian thực hành trên lớp; sinh viên có thể tiếp tục làm ở nhà từ project hiện tại.
+Bài 1. Admin quản lý Product / Category
+Tái sử dụng CRUD Product và Category đã có từ B05. Không viết lại CRUD.
+Guest không được truy cập trang quản trị Product/Category.
+Customer không được truy cập trang quản trị Product/Category.
+Admin được phép xem danh sách, Create, Edit và Delete Product/Category.
+Products/Details/{id} vẫn phải cho Guest và Customer xem chi tiết sản phẩm.
+Bổ sung kiểm tra quyền Admin cho các action quản trị; không khóa action Details.
+KẾT QUẢ CẦN ĐẠT
+Guest/Customer không truy cập được chức năng quản trị Product/Category; Admin thực hiện CRUD bình thường. Trang Product Details của storefront vẫn hoạt động cho khách.
+Bài 2. Admin quản lý Order + cập nhật Status
+Tạo chức năng quản lý đơn hàng dành riêng cho Admin.
+Hiển thị danh sách Order với OrderID, OrderDate, RecipientName, ShippingPhone, TotalAmount và Status.
+Cho phép Admin cập nhật Status theo các giá trị: Chờ xử lý, Đã xác nhận, Đang giao, Hoàn thành, Đã hủy.
+Sau khi cập nhật, dữ liệu Status trong bảng OrderPro phải thay đổi đúng.
+Guest và Customer không được truy cập URL quản lý Order.
+KẾT QUẢ CẦN ĐẠT
+Admin xem được danh sách đơn hàng và cập nhật trạng thái; Guest/Customer bị chặn khỏi chức năng quản trị Order.
+Bài 3. Admin xem chi tiết đơn hàng
+Từ danh sách Order, thêm nút Chi tiết cho từng đơn hàng.
+Hiển thị OrderID, OrderDate, Status, TotalAmount.
+Hiển thị RecipientName, ShippingPhone, Email và ShippingAddress.
+Hiển thị danh sách OrderDetail gồm Product, UnitPrice, Quantity và Thành tiền.
+Thành tiền từng dòng = UnitPrice × Quantity.
+Guest và Customer không được truy cập URL chi tiết đơn hàng của Admin.
+KẾT QUẢ CẦN ĐẠT
+Admin xem được đầy đủ OrderPro + Customer + OrderDetail + Product của đơn hàng được chọn.
+10. Kết quả cần đạt cuối B08
+Phần
+Kết quả cần đạt
+Sign Up + Validation
+Form đăng ký hoạt động; Required, Email, ConfirmPassword kiểm tra đúng.
+Hash + Salt
+Không lưu Password dạng rõ; PasswordHash và PasswordSalt được tạo đúng.
+UserAccount → Customer
+Tạo UserAccount trước, lấy UserID rồi tạo Customer gắn đúng UserID.
+Login + Session
+Kiểm tra đúng PasswordHash/Salt; Session giữ UserID, UserName, Role, CustomerID, FullName.
+Logout
+Xóa Session tài khoản nhưng không làm mất Cart.
+Role Admin / Customer
+Phân biệt đúng quyền Admin và Customer.
+Admin Authorization
+Customer không vào được chức năng Admin; Admin được phép truy cập.
+Menu
+Hiển thị đúng theo Guest / Customer / Admin.
+Member Checkout
+Customer đã Login dùng Customer hiện tại, không tạo Customer mới.
+PHẦN THỰC HÀNH CHÍNH B08 HOÀN TẤT
+Sinh viên đã xây dựng được cơ chế đăng ký, đăng nhập, Hash + Salt, Session, Logout, Role, phân quyền Admin, menu động và Member Checkout. Các chức năng quản trị nâng cao tiếp tục ở phần Bài tập cuối buổi.
+11. Giới thiệu ASP.NET Identity - phần nâng cao
+MỤC ĐÍCH
+Phần này chỉ giới thiệu để sinh viên biết framework thường dùng trong ứng dụng thực tế. Không yêu cầu chuyển project B08 sang ASP.NET Identity trong phần thực hành chính.
+B08 tự xây để học bản chất
+ASP.NET Identity trong ứng dụng thực tế
+UserAccount
+AspNetUsers
+PasswordHash + PasswordSalt tự xử lý
+Identity quản lý Password Hashing
+Session giữ thông tin Login
+Authentication Cookie / Claims
+Role table + Session Role
+AspNetRoles + User/Role APIs
+AdminAuthorizeAttribute tự xây
+[Authorize] / [Authorize(Roles="Admin")]
+Tự xử lý Login/Logout
+UserManager / SignInManager
+Ý TƯỞNG CẦN NHỚ
+B08 tự xây để sinh viên nhìn thấy rõ luồng dữ liệu và hiểu Authentication/Authorization. Khi phát triển ứng dụng thực tế, nên dùng ASP.NET Identity hoặc nền tảng xác thực chuyên dụng thay vì tự xây toàn bộ cơ chế bảo mật.

@@ -1,0 +1,41 @@
+﻿@model WebApplication1.Models.CheckoutViewModel
+@using System.Linq
+@{
+    ViewBag.Title = "Thanh toán";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<h2 class="section-title">Thông tin đặt hàng</h2>
+
+<div class="checkout-grid">
+    <div class="checkout-form-card">
+        @using (Html.BeginForm("Checkout", "ShoppingCart", FormMethod.Post))
+        {
+            @Html.AntiForgeryToken()
+            @Html.ValidationSummary(true, "Vui lòng kiểm tra thông tin:", new { @class = "cart-message-error" })
+            <div class="checkout-row"><label class="checkout-label">Họ tên</label>@Html.TextBoxFor(m => m.FullName, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.FullName)</div>
+            <div class="checkout-row"><label class="checkout-label">Số điện thoại</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.Phone)</div>
+            <div class="checkout-row"><label class="checkout-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control", type = "email" })@Html.ValidationMessageFor(m => m.Email)</div>
+            <div class="checkout-row"><label class="checkout-label">Địa chỉ khách hàng</label>@Html.TextAreaFor(m => m.Address, new { @class = "form-control", rows = 3 })@Html.ValidationMessageFor(m => m.Address)</div>
+            <div class="checkout-row"><label class="checkout-label">Địa chỉ giao hàng</label>@Html.TextAreaFor(m => m.ShippingAddress, new { @class = "form-control", rows = 3 })@Html.ValidationMessageFor(m => m.ShippingAddress)</div>
+            <button type="submit" class="btn-brand">Đặt hàng</button>
+        }
+    </div>
+
+    <div class="checkout-order-card">
+        <h3>Đơn hàng của bạn</h3>
+        @foreach (var item in Model.Cart.Items)
+        {
+            <div class="checkout-product">
+                <div class="checkout-product-image"><img src="~/Content/images/@item.ImageUrl" alt="@item.ProductName" /></div>
+                <div class="checkout-product-info"><strong>@item.ProductName</strong><div class="checkout-product-detail">SL: <span>@item.Quantity</span> × <span>@item.UnitPrice.ToString("#,##0") đ</span></div></div>
+                <div class="checkout-product-total">@item.LineTotal.ToString("#,##0") đ</div>
+            </div>
+        }
+        <div class="checkout-grand-total"><span>Tổng tiền</span><strong>@Model.Cart.TotalMoney().ToString("#,##0") đ</strong></div>
+    </div>
+</div>
+
+@section scripts {
+    @Scripts.Render("~/bundles/jqueryval")
+}
